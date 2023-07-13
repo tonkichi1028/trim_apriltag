@@ -1,0 +1,63 @@
+<launch>
+  <!-- USB_cam1 -->
+  <node name="usb_cam1" pkg="usb_cam" type="usb_cam_node" output="screen">
+    <param name="video_device" value="/dev/video0" />
+    <param name="image_width" value="1280" />
+    <param name="image_height" value="720" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="usb_cam1" />
+    <param name="io_method" value="mmap" />
+    <param name="framerate" value="30" />
+    <param name="camera_info_url" value="package://trim_apriltag/config/c270_1.yaml" />
+  </node>
+
+  <!-- apriltag_ros_continuous_node -->
+  <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_ros_continuous_node1" clear_params="true" output="screen" >
+    <remap from="image_rect" to="/masking_image1" />
+    <remap from="camera_info" to="/masking_info1" />
+    <param name="camera_frame" type="str" value="usb_cam" />
+    <param name="publish_tag_detections_image" type="bool" value="true" />
+  </node>
+
+  <!-- image_view -->
+  <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/tag_detections_image"/>
+    <param name="autosize" value="true" />
+  </node>
+
+  <!-- masking_image -->
+  <node name="masking_image1" pkg="trim_apriltag" type="trim_cam1.py" output="screen"/>
+
+  <!-- Set parameters -->
+  <rosparam command="load" file="$(find gimbal)/config/settings.yaml" ns="apriltag_ros_continuous_node1" />
+  <rosparam command="load" file="$(find gimbal)/config/tags.yaml" ns="apriltag_ros_continuous_node1" />
+
+
+    <!-- USB_cam2 -->
+  <node name="usb_cam2" pkg="usb_cam" type="usb_cam_node" output="screen">
+    <param name="video_device" value="/dev/video1" />
+    <param name="image_width" value="1280" />
+    <param name="image_height" value="720" />
+    <param name="pixel_format" value="mjpeg" />
+    <param name="camera_frame_id" value="usb_cam2" />
+    <param name="io_method" value="mmap" />
+    <param name="framerate" value="30" />
+    <param name="camera_info_url" value="package://trim_apriltag/config/c270_2.yaml" />
+  </node>
+
+  <!-- apriltag_ros_continuous_node -->
+  <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_ros_continuous_node2" clear_params="true" output="screen" >
+    <remap from="image_rect" to="/masking_image2" />
+    <remap from="camera_info" to="/masking_info2" />
+    <param name="camera_frame" type="str" value="usb_cam" />
+    <param name="publish_tag_detections_image" type="bool" value="true" />
+  </node>
+
+
+  <!-- masking_image -->
+  <node name="masking_image2" pkg="trim_apriltag" type="trim_cam2.py" output="screen"/>
+
+  <!-- Set parameters -->
+  <rosparam command="load" file="$(find gimbal)/config/settings.yaml" ns="apriltag_ros_continuous_node2" />
+  <rosparam command="load" file="$(find gimbal)/config/tags.yaml" ns="apriltag_ros_continuous_node2" />
+</launch>
