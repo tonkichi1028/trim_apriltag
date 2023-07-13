@@ -45,7 +45,7 @@ class tracking_apriltag(object):
 		self.flag_detection = 0
 
 		# flaf image prosess
-		self.flag_trim = 0
+		self.flag_trim = 1
 
 		# Time
 		self.time_start = 0

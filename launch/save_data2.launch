@@ -64,6 +64,7 @@
  <!-- masking_image -->
   <node name="masking_image2" pkg="trim_apriltag" type="trim_cam2.py" output="screen"/>
 
+  <node name="save_data" pkg="trim_apriltag" type="save_data2.py" output="screen"/>
 
   <!-- Set parameters -->
   <rosparam command="load" file="$(find gimbal)/config/settings.yaml" ns="apriltag_ros_continuous_node1" />

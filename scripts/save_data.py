@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import rospy
 from apriltag_ros.msg import AprilTagDetectionArray, AprilTagDetectionPositionArray
+from sensor_msgs.msg import CameraInfo
 import csv
 import os
 from datetime import datetime
@@ -10,10 +11,22 @@ class TopicSubscriber(object):
     def __init__(self):
         self.subscriber_detections = rospy.Subscriber('/tag_detections', AprilTagDetectionArray, self.callback_detections)
         self.subscriber_position = rospy.Subscriber('/tag_position', AprilTagDetectionPositionArray, self.callback_position)
+        self.subscriber_camera_info = rospy.Subscriber('/masking_info', CameraInfo, self.callback_camera_info)
+
         self.data_to_save_detections = []
         self.data_to_save_positions = []
+        self.data_to_save_camera_info = []
         self.prev_time_detections = rospy.get_time()
         self.prev_time_position = rospy.get_time()
+        self.prev_time_camera_info = rospy.get_time()
+
+    def callback_camera_info(self, msg):
+        curr_time = rospy.get_time()
+        hz_camera_info = 1.0 / (curr_time - self.prev_time_camera_info)
+        self.prev_time_camera_info = curr_time
+        x_offset = msg.roi.x_offset
+        y_offset = msg.roi.y_offset
+        self.data_to_save_camera_info.append([curr_time, hz_camera_info, x_offset, y_offset])
 
     def callback_detections(self, msg):
         curr_time = rospy.get_time()
@@ -23,7 +36,6 @@ class TopicSubscriber(object):
         y = msg.detections[0].pose.pose.pose.position.y
         z = msg.detections[0].pose.pose.pose.position.z
         self.data_to_save_detections.append([curr_time, hz_detections, x, y, z])
-        rospy.loginfo("Data saved: x=%f, y=%f, z=%f, Frequency: %f Hz", x, y, z, hz_detections)
 
     def callback_position(self, msg):
         curr_time = rospy.get_time()
@@ -32,7 +44,6 @@ class TopicSubscriber(object):
         u = msg.detect_positions[0].x
         v = msg.detect_positions[0].y
         self.data_to_save_positions.append([curr_time, hz_position, u, v])
-        rospy.loginfo("Data saved: u=%f, v=%f, Frequency: %f Hz", u, v, hz_position)
 
     def save_data(self):
         data_folder = "/home/wanglab/catkin_wsTrim/src/trim_apriltag/data/"
@@ -58,6 +69,12 @@ class TopicSubscriber(object):
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'hz_positions', 'u', 'v'])
             writer.writerows(self.data_to_save_positions)
+
+        filename_camera_info = os.path.join(experiment_folder, "saved_data_camera_info.csv")
+        with open(filename_camera_info, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(['timestamp', 'hz_camera_info', 'x_offset', 'y_offset'])
+            writer.writerows(self.data_to_save_camera_info)
 
 if __name__ == "__main__":
     rospy.init_node('topic_subscriber_node')
