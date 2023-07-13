@@ -1,0 +1,68 @@
+- /apriltag_ros/src/common_functions.cpp:530
+
+apriltag_ros::AprilTagDetectionPositionArray TagDetector::getCenterPosition (cv_bridge::CvImagePtr image, const sensor_msgs::CameraInfoConstPtr& camera_info)
+//apriltag_ros::AprilTagDetectionPositionArray TagDetector::getCenterPosition (cv_bridge::CvImagePtr image)
+{
+  apriltag_ros::AprilTagDetectionPositionArray position_array;
+
+  // change(Get the ROI)
+  sensor_msgs::RegionOfInterest roi = camera_info->roi;
+  std::string frame_id = camera_info->header.frame_id;
+
+  for (int i = 0; i < zarray_size(detections_); i++)
+  {
+    apriltag_detection_t *det;
+    zarray_get(detections_, i, &det);
+
+    // Check if this ID is present in config/tags.yaml
+    // Check if is part of a tag bundle
+    int tagID = det->id;
+    bool is_part_of_bundle = false;
+    for (unsigned int j=0; j<tag_bundle_descriptions_.size(); j++)
+    {
+      TagBundleDescription bundle = tag_bundle_descriptions_[j];
+      if (bundle.id2idx_.find(tagID) != bundle.id2idx_.end())
+      {
+        is_part_of_bundle = true;
+        break;
+      }
+    }
+    // If not part of a bundle, check if defined as a standalone tag
+    StandaloneTagDescription* standaloneDescription;
+    if (!is_part_of_bundle &&
+        !findStandaloneTagDescription(tagID, standaloneDescription, false))
+    {
+      // Neither a standalone tag nor part of a bundle, so this is a "rogue"
+      // tag, skip it.
+      continue;
+    }
+    apriltag_ros::AprilTagDetectionPosition pos_data;
+    pos_data.id = tagID;
+
+    // change(Add the ROI offset to the detected position)
+    pos_data.x = (int)(det->c[0]) + roi.x_offset;
+    pos_data.y = (int)(det->c[1]) + roi.y_offset;
+
+    //pos_data.x = (int)(det->c[0]);
+    //pos_data.y = (int)(det->c[1]);
+
+    position_array.detect_positions.push_back(pos_data);
+  }
+  //position_array.header.frame_id = "";
+  position_array.header.frame_id = frame_id;
+  position_array.header.stamp = ros::Time::now();
+  return position_array;
+}
+
+
+- /apriltag_ros/src/continuous_detector.cpp:94
+
+    tag_detect_position_publisher_.publish(tag_detector_->getCenterPosition(cv_image_, camera_info));
+    //tag_detect_position_publisher_.publish(tag_detector_->getCenterPosition(cv_image_));
+
+
+- /apriltag_ros/include/apriltag_ros/common_functions.h:238
+
+  apriltag_ros::AprilTagDetectionPositionArray getCenterPosition(cv_bridge::CvImagePtr image, const sensor_msgs::CameraInfoConstPtr& camera_info);
+  //apriltag_ros::AprilTagDetectionPositionArray getCenterPosition(cv_bridge::CvImagePtr image);
+
