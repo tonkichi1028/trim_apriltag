@@ -100,15 +100,15 @@ class tracking_apriltag(object):
 
 
 	def Wide_Trim(self):
-		center_u = self.Position_now_image.x
-		center_v = self.Position_now_image.y
+		center_u = self.Position_now_image[0]
+		center_v = self.Position_now_image[1]
 
 		f = 1581
 		z = self.Position_now_camera.z
 		Length_Tag_world = 0.043
 
 		Length_Tag_image = f * (Length_Tag_world / z)
-		alpha = 1.5
+		alpha = 0.8
 
 		self.trim0_u0 = int(center_u - Length_Tag_image * alpha)
 		self.trim0_u1 = int(center_u + Length_Tag_image * alpha)
@@ -137,6 +137,7 @@ class tracking_apriltag(object):
 
 
 	def tag_camera_callback(self,data_camera):
+
 		if len(data_camera.detections) >= 1:
 			self.Position_now_camera = data_camera.detections[0].pose.pose.pose.position
 			self.flag_detection = 1
@@ -147,7 +148,8 @@ class tracking_apriltag(object):
 
 	def tag_image_callback(self, data_image):
 		if len(data_image.detect_positions) >= 1:
-			self.Position_now_image = data_image.detect_positions[0]
+				self.Position_now_image[0] = data_image.detect_positions[0].x
+				self.Position_now_image[1] = data_image.detect_positions[0].y
 		else:
 			# init
 			self.trim0_u0 = 0

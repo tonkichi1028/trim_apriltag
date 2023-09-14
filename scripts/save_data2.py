@@ -28,6 +28,10 @@ class TopicSubscriber(object):
         self.prev_time_position2 = rospy.get_time()
         self.prev_time_camera_info1 = rospy.get_time()
         self.prev_time_camera_info2 = rospy.get_time()
+        self.num_detections1 = 0
+        self.num_detections2 = 0
+        self.num_successful_detections1 = 0
+        self.num_successful_detections2 = 0
 
     def callback_camera_info1(self, msg):
         curr_time = rospy.get_time()
@@ -49,35 +53,53 @@ class TopicSubscriber(object):
         curr_time = rospy.get_time()
         hz_detections = 1.0 / (curr_time - self.prev_time_detections1)
         self.prev_time_detections1 = curr_time
-        x = msg.detections[0].pose.pose.pose.position.x
-        y = msg.detections[0].pose.pose.pose.position.y
-        z = msg.detections[0].pose.pose.pose.position.z
-        self.data_to_save_detections1.append([curr_time, hz_detections, x, y, z])
+        if len(msg.detections) >= 1:
+            x = msg.detections[0].pose.pose.pose.position.x
+            y = msg.detections[0].pose.pose.pose.position.y
+            z = msg.detections[0].pose.pose.pose.position.z
+            self.data_to_save_detections1.append([curr_time, hz_detections, x, y, z])
+            self.num_detections1 += 1
+            self.num_successful_detections1 += 1
+        else:
+            self.data_to_save_detections1.append([curr_time, hz_detections, None, None, None])
+            self.num_detections1 += 1
 
     def callback_detections2(self, msg):
         curr_time = rospy.get_time()
         hz_detections = 1.0 / (curr_time - self.prev_time_detections2)
         self.prev_time_detections2 = curr_time
-        x = msg.detections[0].pose.pose.pose.position.x
-        y = msg.detections[0].pose.pose.pose.position.y
-        z = msg.detections[0].pose.pose.pose.position.z
-        self.data_to_save_detections2.append([curr_time, hz_detections, x, y, z])
+        if len(msg.detections) >= 1:
+            x = msg.detections[0].pose.pose.pose.position.x
+            y = msg.detections[0].pose.pose.pose.position.y
+            z = msg.detections[0].pose.pose.pose.position.z
+            self.data_to_save_detections2.append([curr_time, hz_detections, x, y, z])
+            self.num_detections2 += 1
+            self.num_successful_detections2 += 1
+        else:
+            self.data_to_save_detections2.append([curr_time, hz_detections, None, None, None])
+            self.num_detections2 += 1
 
     def callback_position1(self, msg):
         curr_time = rospy.get_time()
         hz_position = 1.0 / (curr_time - self.prev_time_position1)
         self.prev_time_position1 = curr_time
-        u = msg.detect_positions[0].x
-        v = msg.detect_positions[0].y
-        self.data_to_save_positions1.append([curr_time, hz_position, u, v])
+        if len(msg.detect_positions) >= 1:
+            u = msg.detect_positions[0].x
+            v = msg.detect_positions[0].y
+            self.data_to_save_positions1.append([curr_time, hz_position, u, v])
+        else:
+            self.data_to_save_positions1.append([curr_time, hz_position, None, None])
 
     def callback_position2(self, msg):
         curr_time = rospy.get_time()
         hz_position = 1.0 / (curr_time - self.prev_time_position2)
         self.prev_time_position2 = curr_time
-        u = msg.detect_positions[0].x
-        v = msg.detect_positions[0].y
-        self.data_to_save_positions2.append([curr_time, hz_position, u, v])
+        if len(msg.detect_positions) >= 1:
+            u = msg.detect_positions[0].x
+            v = msg.detect_positions[0].y
+            self.data_to_save_positions2.append([curr_time, hz_position, u, v])
+        else:
+            self.data_to_save_positions2.append([curr_time, hz_position, None, None])
 
     def save_data(self):
         data_folder = "/home/wanglab/catkin_wsTrim/src/trim_apriltag/data/"
@@ -113,6 +135,17 @@ class TopicSubscriber(object):
             writer = csv.writer(f)
             writer.writerow(['timestamp', 'hz_camera_info', 'x_offset', 'y_offset'])
             writer.writerows(data_to_save_camera_info)
+
+        filename_stats = os.path.join(experiment_folder, "detection_statistics{}.csv".format(camera_id))
+        with open(filename_stats, "w") as f:
+            writer = csv.writer(f)
+            writer.writerow(['num_detections', 'num_successful_detections', 'detection_rate'])
+            if camera_id == "1":
+                detection_rate = self.num_successful_detections1 / float(self.num_detections1) if self.num_detections1 > 0 else 0.0
+                writer.writerow([self.num_detections1, self.num_successful_detections1, detection_rate])
+            elif camera_id == "2":
+                detection_rate = self.num_successful_detections2 / float(self.num_detections2) if self.num_detections2 > 0 else 0.0
+                writer.writerow([self.num_detections2, self.num_successful_detections2, detection_rate])
 
 if __name__ == "__main__":
     rospy.init_node('topic_subscriber_node')

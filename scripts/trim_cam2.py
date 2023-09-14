@@ -100,8 +100,8 @@ class tracking_apriltag2(object):
 
 	
 	def Wide_Trim(self):
-		center_u = self.Position_now_image.x
-		center_v = self.Position_now_image.y
+		center_u = self.Position_now_image[0]
+		center_v = self.Position_now_image[1]
 			
 		f = 1581
 		z = self.Position_now_camera.z
@@ -148,7 +148,8 @@ class tracking_apriltag2(object):
 	def tag_image_callback(self, data_image):
 		if len(data_image.detect_positions) >= 1:
 			if data_image.header.frame_id == 'usb_cam2':
-				self.Position_now_image = data_image.detect_positions[0]
+				self.Position_now_image[0] = data_image.detect_positions[0].x
+				self.Position_now_image[1] = data_image.detect_positions[0].y
 		else:
 			# init
 			self.trim0_u0 = 0

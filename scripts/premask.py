@@ -6,7 +6,7 @@ import rospy
 import cv2
 import message_filters
 import numpy as np
-import Jetson.GPIO as GPIO
+import subprocess
 # msg
 from sensor_msgs.msg import Image, CameraInfo
 from apriltag_ros.msg import AprilTagDetectionArray
@@ -48,44 +48,15 @@ class tracking_apriltag(object):
 		self.delta_Position_image = [0, 0]
 		self.delta_delta_Position_image = [0, 0]
 
-		# gimbal_init
-		pitch_pin = 32
-		yaw_pin = 33
-		GPIO.setmode(GPIO.BOARD)
-
-		# pitch init
-		GPIO.setup(pitch_pin, GPIO.OUT, initial=GPIO.HIGH)
-		self.pitch = GPIO.PWM(pitch_pin, 400)
-		self.pitch.start(60.156)
-		# yaw init
-		GPIO.setup(yaw_pin, GPIO.OUT, initial=GPIO.HIGH)
-		self.yaw = GPIO.PWM(yaw_pin, 400)
-		self.yaw.start(60.156)
-
-		# pwm_input_value, [0]=t, [1]=t-1, center_value=60.156
-		self.pitch_input_pwm = 60.156
-		self.yaw_input_pwm = 60.156
-
-		# error_value_deg, [0]=t, [1]=t-1, [2]=t-2
-		self.pitch_error = [0.00, 0.00, 0.00]
-		self.yaw_error = [0.00, 0.00, 0.00]
-		
-		# flag
-		self.flag_camera = 0
+		# flag Tag
 		self.flag_image = 0
 		self.flag_detection = 0
+		self.flag_camera = 0
+		self.flag_image = 0
 
+		# flaf image prosess
 		self.flag_trim = 1
-
-		# Pitch PID
-		self.pitch_P = 0.053
-		self.pitch_I = 0.005
-		self.pitch_D = 0.002
-
-		# yaw PID
-		self.yaw_P = 0.055
-		self.yaw_I = 0.002
-		self.yaw_D = 0.003
+		self.flag_mask = 0
 
 		# Time
 		self.time_start = 0
@@ -100,7 +71,6 @@ class tracking_apriltag(object):
 
 
 	def image_callback(self, ros_image, camera_info):
-
 		if self.flag_detection == 1:
 			input_image = self.bridge.imgmsg_to_cv2(ros_image, "bgr8")
 			output_image, camera_info = self.image_process(input_image, camera_info)
@@ -124,6 +94,10 @@ class tracking_apriltag(object):
 				output_image = self.bridge.cv2_to_imgmsg(np.array(trim_image), "bgr8")
 			else:
 				output_image = self.bridge.cv2_to_imgmsg(np.array(input_image), "bgr8")
+
+		elif self.flag_mask == 1:
+				mask_image = self.mask_process(input_image)
+				output_image = self.bridge.cv2_to_imgmsg(np.array(mask_image), "bgr8")
 		else:
 			output_image = self.bridge.cv2_to_imgmsg(np.array(input_image), "bgr8")
 
@@ -131,7 +105,7 @@ class tracking_apriltag(object):
 
 
 
-	# Triming Process
+	# Trimming Process
 	def Trim(self,input_image):
 		self.Wide_Trim()
 		trim_image = input_image[self.trim0_v0:self.trim0_v1, self.trim0_u0:self.trim0_u1]
@@ -139,21 +113,26 @@ class tracking_apriltag(object):
 		return trim_image
 
 
+	def mask_process(self, input_image):
+		self.Wide_Trim()
+		mask_image = cv2.rectangle(input_image,(0,0),(1280,self.trim0_v0),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(0,self.trim0_v1),(1280,720),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(0,0),(self.trim0_u0,720),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(self.trim0_u1,0),(1280,720),color=0, thickness=-1)
+
+		#mask_image = input_image
+		return mask_image
 
 	def Wide_Trim(self):
-		if self.flag_camera == 1:
-			center_u = self.Position_predicted_image[0]
-			center_v = self.Position_predicted_image[1]
-		else:
-			center_u = self.Position_now_image.x
-			center_v = self.Position_now_image.y
+		center_u = self.Position_predicted_image[0]
+		center_v = self.Position_predicted_image[1]
 
-		f = 1581
+		f = 956
 		z = self.Position_predicted_camera[2]
-		Length_Tag_world = 0.043
+		Length_Tag_world = 0.035
 
 		Length_Tag_image = f * (Length_Tag_world / z)
-		alpha = 1.0
+		alpha = 1.5
 
 		self.trim0_u0 = int(center_u - Length_Tag_image * alpha)
 		self.trim0_u1 = int(center_u + Length_Tag_image * alpha)
@@ -164,6 +143,10 @@ class tracking_apriltag(object):
 			self.trim0_u0 = 0
 		if self.trim0_v0 < 0:
 			self.trim0_v0 = 0
+		if self.trim0_u1 > 1280:
+			self.trim0_u1 = 1280
+		if self.trim0_v1 > 720:
+			self.trim0_v1 = 720
 
 
 
@@ -181,16 +164,13 @@ class tracking_apriltag(object):
 
 
 
+
 	def tag_camera_callback(self,data_camera):
 		if len(data_camera.detections) >= 1:
-
 			if self.flag_camera == 0:
 				self.flag_camera = 1
-
 				self.Position_old_camera = data_camera.detections[0].pose.pose.pose.position
-
 			else:
-
 				self.Position_now_camera = data_camera.detections[0].pose.pose.pose.position
 
 				self.Position_predicter_camera()
@@ -204,42 +184,20 @@ class tracking_apriltag(object):
 
 
 
+
 	def tag_image_callback(self, data_image):
 		if len(data_image.detect_positions) >= 1:
-
+			
 			if self.flag_image == 0:
 				self.Position_now_image = data_image.detect_positions[0]
-
-				self.pixel_error()
-				# controller
-				self.pitch_pid_controller()
-				self.yaw_pid_controller()
-
 				self.Position_old_image = self.Position_now_image
-
 				self.flag_image = 1
 			else:
 				self.Position_now_image = data_image.detect_positions[0]
-
 				self.Position_predicter_image()
-
-				self.pixel_error()
-				# controller
-				self.pitch_pid_controller()
-				self.yaw_pid_controller()
-
-
 				self.Position_old_image = self.Position_now_image
 		else:
 			# init
-			self.pitch_input_pwm = 60.156
-			self.pitch.ChangeDutyCycle(self.pitch_input_pwm)
-			self.yaw_input_pwm = 60.156
-			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
-
-			self.pitch_error = [0.00, 0.00, 0.00]
-			self.yaw_error = [0.00, 0.00, 0.00]
-
 			self.Position_old_image = [0, 0, 0]
 			self.Position_predicted_image = [640, 360]
 			self.flag_image = 0
@@ -248,64 +206,6 @@ class tracking_apriltag(object):
 			self.trim0_u1 = 1280
 			self.trim0_v0 = 0
 			self.trim0_v1 = 720
-
-
-
-	def pitch_pid_controller(self,event=None):
-		P = self.pitch_P
-		I = self.pitch_I
-		D = self.pitch_D
-
-		P = P*(self.pitch_error[0]-self.pitch_error[1])
-		I = I*self.pitch_error[0]
-		D = D*((self.pitch_error[0]-self.pitch_error[1])-(self.pitch_error[1]-self.pitch_error[2]))
-
-		self.pitch_input_pwm =  self.pitch_input_pwm + P + I + D
-
-		# commandable area of PWM
-		if self.pitch_input_pwm >= 86.523:
-			self.pitch_input_pwm = 86.523
-			self.pitch.ChangeDutyCycle(self.pitch_input_pwm)
-
-		elif self.pitch_input_pwm <= 35.743:
-			self.pitch_input_pwm = 35.743
-			self.pitch.ChangeDutyCycle(self.pitch_input_pwm)
-
-		else:
-			self.pitch.ChangeDutyCycle(self.pitch_input_pwm)
-
-		# storage of error values
-		self.pitch_error[2] = self.pitch_error[1]
-		self.pitch_error[1] = self.pitch_error[0]
-
-
-
-	def yaw_pid_controller(self,event=None):
-		P = self.yaw_P
-		I = self.yaw_I
-		D = self.yaw_D
-
-		P = P*(self.yaw_error[0]-self.yaw_error[1])
-		I = I*self.yaw_error[0]
-		D = D*((self.yaw_error[0]-self.yaw_error[1])-(self.yaw_error[1]-self.yaw_error[2]))
-
-		self.yaw_input_pwm = self.yaw_input_pwm + P + I + D
-
-		# commandable area of PWM
-		if self.yaw_input_pwm >= 86.523:
-			self.yaw_input_pwm = 86.523
-			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
-
-		elif self.yaw_input_pwm <= 35.743:
-			self.yaw_input_pwm = 35.743
-			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
-
-		else:
-			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
-		# storage of error values
-		self.yaw_error[2] = self.yaw_error[1]
-		self.yaw_error[1] = self.yaw_error[0]
-
 
 
 	def Position_predicter_camera(self):
@@ -329,34 +229,8 @@ class tracking_apriltag(object):
 		self.delta_delta_Position_image = self.delta_Position_image
 
 
-
-	def pixel_error(self):
-		if self.flag_image == 1:
-			error_pitch = -(360 - self.Position_predicted_image[1])
-			error_yaw = (640 - self.Position_predicted_image[0])
-		else:
-			error_pitch = -(360 - self.Position_now_image.y)
-			error_yaw = (640 - self.Position_now_image.x)
-
-		safe_pix = 0
-		# tolerance of pixel
-		if -safe_pix <= error_pitch <= safe_pix:
-			self.pitch_error[0] = 0
-		else:
-			self.pitch_error[0] = error_pitch
-
-		if -safe_pix <= error_yaw <= safe_pix:
-			self.yaw_error[0] = 0
-		else:
-			self.yaw_error[0] = error_yaw
-
-
-
 	def cleanup(self):
 		cv2.destroyAllWindows()
-		self.pitch.stop()
-		self.yaw.stop()
-		GPIO.cleanup()
 
 
 

@@ -15,19 +15,19 @@ from cv_bridge import CvBridge, CvBridgeError
 
 
 
-class tracking_apriltag1(object):
+class tracking_apriltag(object):
 	def __init__(self):
 		# ROS
-		rospy.init_node("tracking_apriltag1")
+		rospy.init_node("tracking_apriltag")
 		rospy.on_shutdown(self.cleanup)
 
 		self.bridge = CvBridge()
-		self.image_pub = rospy.Publisher("/masking_image1", Image, queue_size=1)
-		self.info_pub = rospy.Publisher("/masking_info1", CameraInfo, queue_size=1)
-		self.tag_det = rospy.Subscriber('/tag_detections1',AprilTagDetectionArray,self.tag_camera_callback)
-		self.tag_pos = rospy.Subscriber('/tag_position1',AprilTagDetectionPositionArray,self.tag_image_callback)
-		sub1 = message_filters.Subscriber('/usb_cam1/image_raw', Image)
-		sub2 = message_filters.Subscriber('/usb_cam1/camera_info', CameraInfo)
+		self.image_pub = rospy.Publisher("/masking_image", Image, queue_size=1)
+		self.info_pub = rospy.Publisher("/masking_info", CameraInfo, queue_size=1)
+		self.tag_det = rospy.Subscriber('/tag_detections',AprilTagDetectionArray,self.tag_camera_callback)
+		self.tag_pos = rospy.Subscriber('/tag_position',AprilTagDetectionPositionArray,self.tag_image_callback)
+		sub1 = message_filters.Subscriber('/usb_cam/image_raw', Image)
+		sub2 = message_filters.Subscriber('/usb_cam/camera_info', CameraInfo)
 		ts = message_filters.ApproximateTimeSynchronizer([sub1,sub2], 1, 0.5)
 		ts.registerCallback(self.image_callback)
 
@@ -45,7 +45,8 @@ class tracking_apriltag1(object):
 		self.flag_detection = 0
 
 		# flaf image prosess
-		self.flag_trim = 1
+		self.flag_trim = 0
+		self.flag_mask = 0
 
 		# Time
 		self.time_start = 0
@@ -83,6 +84,10 @@ class tracking_apriltag1(object):
 				output_image = self.bridge.cv2_to_imgmsg(np.array(trim_image), "bgr8")
 			else:
 				output_image = self.bridge.cv2_to_imgmsg(np.array(input_image), "bgr8")
+
+		elif self.flag_mask == 1:
+				mask_image = self.mask_process(input_image)
+				output_image = self.bridge.cv2_to_imgmsg(np.array(mask_image), "bgr8")
 		else:
 			output_image = self.bridge.cv2_to_imgmsg(np.array(input_image), "bgr8")
 
@@ -98,16 +103,26 @@ class tracking_apriltag1(object):
 		return trim_image
 
 
-	def Wide_Trim(self):
-		center_u = self.Position_now_image[0]
-		center_v = self.Position_now_image[1]
+	def mask_process(self, input_image):
+		self.Wide_Trim()
+		mask_image = cv2.rectangle(input_image,(0,0),(1280,self.trim0_v0),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(0,self.trim0_v1),(1280,720),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(0,0),(self.trim0_u0,720),color=0, thickness=-1)
+		mask_image = cv2.rectangle(input_image,(self.trim0_u1,0),(1280,720),color=0, thickness=-1)
 
-		f = 1581
+		#mask_image = input_image
+		return mask_image
+
+	def Wide_Trim(self):
+		center_u = self.Position_now_image.x
+		center_v = self.Position_now_image.y
+
+		f = 1415.7
 		z = self.Position_now_camera.z
-		Length_Tag_world = 0.043
+		Length_Tag_world = 0.035
 
 		Length_Tag_image = f * (Length_Tag_world / z)
-		alpha = 1.5
+		alpha = 0.8
 
 		self.trim0_u0 = int(center_u - Length_Tag_image * alpha)
 		self.trim0_u1 = int(center_u + Length_Tag_image * alpha)
@@ -146,10 +161,7 @@ class tracking_apriltag1(object):
 
 	def tag_image_callback(self, data_image):
 		if len(data_image.detect_positions) >= 1:
-			if data_image.header.frame_id == 'usb_cam1':
-				self.Position_now_image[0] = data_image.detect_positions[0].x
-				self.Position_now_image[1] = data_image.detect_positions[0].y
-
+			self.Position_now_image = data_image.detect_positions[0]
 		else:
 			# init
 			self.trim0_u0 = 0
@@ -165,5 +177,5 @@ class tracking_apriltag1(object):
 
 
 if __name__ == "__main__":
-	ts = tracking_apriltag1()
+	ts = tracking_apriltag()
 	rospy.spin()
