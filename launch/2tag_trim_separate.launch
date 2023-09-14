@@ -1,8 +1,7 @@
 <launch>
-  <!--  white_wall.bag  or  add_feature  -->
-  <node name="play" pkg="rosbag" type="play" args="$(find trim_apriltag)/rosbag/video.bag --loop -u 8"/>
+  <include file="$(find trim_apriltag)/launch/src/cam_c270_1.launch" />
 
-  <arg name="launch_prefix" default="" />
+  <arg name="launch_prefix" default="" /> <!-- set to value="gdbserver localhost:10000" for remote debugging -->
   <arg name="node_namespace" default="apriltag_ros_continuous_node" />
   <arg name="camera_name" default="/usb_cam" />
   <arg name="camera_frame" default="usb_cam" />
@@ -19,18 +18,17 @@
   </node>
 
 
-  <!--node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
+  <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/tag_detections_image"/>
     <param name="autosize" value="true" />
-  </node-->
+  </node>
 
 
-  <node name="masking_image" pkg="trim_apriltag" type="premask.py" output="screen"/>
-  <!--node name="save_data" pkg="trim_apriltag" type="save_data.py" output="screen"/-->
+  <node name="masking_image" pkg="trim_apriltag" type="2tag_trim_separate.py" output="screen"/>
 
 
   <!-- Set parameters -->
-  <rosparam command="load" file="$(find gimbal)/config/settings.yaml" ns="$(arg node_namespace)" />
-  <rosparam command="load" file="$(find gimbal)/config/tags.yaml" ns="$(arg node_namespace)" />
+  <rosparam command="load" file="$(find trim_apriltag)/config/settings.yaml" ns="$(arg node_namespace)" />
+  <rosparam command="load" file="$(find trim_apriltag)/config/tags.yaml" ns="$(arg node_namespace)" />
 
 </launch>

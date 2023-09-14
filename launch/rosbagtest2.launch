@@ -2,17 +2,10 @@
   <!-- USB_cam -->
   <node name="play" pkg="rosbag" type="play" args="$(find trim_apriltag)/rosbag/2cam_white.bag --loop"/>
 
-
   <node name="image_view1" pkg="image_view" type="image_view" respawn="false" output="screen">
     <remap from="image" to="/tag_detections_image1"/>
     <param name="autosize" value="true" />
   </node>
-
-  <node name="image_view2" pkg="image_view" type="image_view" respawn="false" output="screen">
-    <remap from="image" to="/tag_detections_image2"/>
-    <param name="autosize" value="true" />
-  </node>
-
 
   <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_ros_continuous_node1" clear_params="true" output="screen" >
     <remap from="image_rect" to="/masking_image1" />
@@ -24,6 +17,14 @@
 
     <param name="camera_frame" type="str" value="usb_cam1" />
     <param name="publish_tag_detections_image" type="bool" value="true" />
+  </node>
+
+ <!-- masking_image -->
+  <node name="masking_image1" pkg="trim_apriltag" type="trim_cam1.py" output="screen"/>
+
+  <node name="image_view2" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <remap from="image" to="/tag_detections_image2"/>
+    <param name="autosize" value="true" />
   </node>
 
   <node pkg="apriltag_ros" type="apriltag_ros_continuous_node" name="apriltag_ros_continuous_node2" clear_params="true" output="screen" >
@@ -38,13 +39,8 @@
     <param name="publish_tag_detections_image" type="bool" value="true" />
   </node>
 
-
  <!-- masking_image -->
-  <node name="masking_image1" pkg="trim_apriltag" type="trim_cam1.py" output="screen"/>
-
   <node name="masking_image2" pkg="trim_apriltag" type="trim_cam2.py" output="screen"/>
-
-  <node name="save_data" pkg="trim_apriltag" type="save_data2.py" output="screen"/>
 
 
   <!-- Set parameters -->
