@@ -90,8 +90,8 @@ class tracking_apriltag(object):
 
 		# yaw PID
 		self.yaw_P = 0.055
-		self.yaw_I = 0.003
-		self.yaw_D = 0.004
+		self.yaw_I = 0.002
+		self.yaw_D = 0.003
 		self.save_pid_parameters()
 		# Time
 		self.time_start = 0
@@ -108,7 +108,7 @@ class tracking_apriltag(object):
 		# Execute v4l2-ctl commands
 		subprocess.call(["v4l2-ctl", "--list-ctrls"])
 		subprocess.call(["v4l2-ctl", "-c", "exposure_auto=1"])
-		subprocess.call(["v4l2-ctl", "-c", "exposure_absolute=30"])
+		subprocess.call(["v4l2-ctl", "-c", "exposure_absolute=40"])
 
 	def save_pid_parameters(self):
 		rospy.set_param("/pitch_P", self.pitch_P)
@@ -170,7 +170,7 @@ class tracking_apriltag(object):
 			center_u = self.Position_now_image.x
 			center_v = self.Position_now_image.y
 
-		f = 1581
+		f = 1666
 		z = self.Position_predicted_camera[2]
 		Length_Tag_world = 0.043
 
@@ -359,6 +359,9 @@ class tracking_apriltag(object):
 		else:
 			error_pitch = -(360 - self.Position_now_image.y)
 			error_yaw = (640 - self.Position_now_image.x)
+		#gim1
+		error_pitch = -error_pitch
+		error_yaw = error_yaw
 
 		safe_pix = 0
 		# tolerance of pixel

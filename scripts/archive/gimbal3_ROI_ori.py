@@ -7,13 +7,10 @@ import cv2
 import message_filters
 import numpy as np
 import Jetson.GPIO as GPIO
-import subprocess
-import time
 # msg
 from sensor_msgs.msg import Image, CameraInfo
 from apriltag_ros.msg import AprilTagDetectionArray
 from apriltag_ros.msg import AprilTagDetectionPositionArray
-from std_msgs.msg import Float64
 
 from cv_bridge import CvBridge, CvBridgeError
 
@@ -28,9 +25,6 @@ class tracking_apriltag(object):
 		self.bridge = CvBridge()
 		self.image_pub = rospy.Publisher("/masking_image", Image, queue_size=1)
 		self.info_pub = rospy.Publisher("/masking_info", CameraInfo, queue_size=1)
-		self.error_pitch_pub = rospy.Publisher('/error_pitch', Float64, queue_size=10)
-		self.error_yaw_pub = rospy.Publisher('/error_yaw', Float64, queue_size=10)
-
 		self.tag_det = rospy.Subscriber('/tag_detections',AprilTagDetectionArray,self.tag_camera_callback)
 		self.tag_pos = rospy.Subscriber('/tag_position',AprilTagDetectionPositionArray,self.tag_image_callback)
 		sub1 = message_filters.Subscriber('/usb_cam/image_raw', Image)
@@ -75,7 +69,7 @@ class tracking_apriltag(object):
 		# error_value_deg, [0]=t, [1]=t-1, [2]=t-2
 		self.pitch_error = [0.00, 0.00, 0.00]
 		self.yaw_error = [0.00, 0.00, 0.00]
-
+		
 		# flag
 		self.flag_camera = 0
 		self.flag_image = 0
@@ -90,9 +84,9 @@ class tracking_apriltag(object):
 
 		# yaw PID
 		self.yaw_P = 0.055
-		self.yaw_I = 0.003
-		self.yaw_D = 0.004
-		self.save_pid_parameters()
+		self.yaw_I = 0.002
+		self.yaw_D = 0.003
+
 		# Time
 		self.time_start = 0
 		self.time = 0
@@ -102,22 +96,6 @@ class tracking_apriltag(object):
 		self.trim0_u1 = 1280
 		self.trim0_v0 = 0
 		self.trim0_v1 = 720
-
-		# usb_camが完全に起動するのを待つ
-		time.sleep(.1) # 0.1秒待つ
-		# Execute v4l2-ctl commands
-		subprocess.call(["v4l2-ctl", "--list-ctrls"])
-		subprocess.call(["v4l2-ctl", "-c", "exposure_auto=1"])
-		subprocess.call(["v4l2-ctl", "-c", "exposure_absolute=30"])
-
-	def save_pid_parameters(self):
-		rospy.set_param("/pitch_P", self.pitch_P)
-		rospy.set_param("/pitch_I", self.pitch_I)
-		rospy.set_param("/pitch_D", self.pitch_D)
-
-		rospy.set_param("/yaw_P", self.yaw_P)
-		rospy.set_param("/yaw_I", self.yaw_I)
-		rospy.set_param("/yaw_D", self.yaw_D)
 
 
 
@@ -169,7 +147,7 @@ class tracking_apriltag(object):
 		else:
 			center_u = self.Position_now_image.x
 			center_v = self.Position_now_image.y
-
+			
 		f = 1581
 		z = self.Position_predicted_camera[2]
 		Length_Tag_world = 0.043
@@ -177,7 +155,7 @@ class tracking_apriltag(object):
 		Length_Tag_image = f * (Length_Tag_world / z)
 		alpha = 1.0
 
-		self.trim0_u0 = int(center_u - Length_Tag_image * alpha)
+		self.trim0_u0 = int(center_u - Length_Tag_image * alpha) 
 		self.trim0_u1 = int(center_u + Length_Tag_image * alpha)
 		self.trim0_v0 = int(center_v - Length_Tag_image * alpha)
 		self.trim0_v1 = int(center_v + Length_Tag_image * alpha)
@@ -228,7 +206,7 @@ class tracking_apriltag(object):
 
 	def tag_image_callback(self, data_image):
 		if len(data_image.detect_positions) >= 1:
-
+			
 			if self.flag_image == 0:
 				self.Position_now_image = data_image.detect_positions[0]
 
@@ -250,7 +228,6 @@ class tracking_apriltag(object):
 				self.pitch_pid_controller()
 				self.yaw_pid_controller()
 
-
 				self.Position_old_image = self.Position_now_image
 		else:
 			# init
@@ -270,7 +247,6 @@ class tracking_apriltag(object):
 			self.trim0_u1 = 1280
 			self.trim0_v0 = 0
 			self.trim0_v1 = 720
-
 
 
 	def pitch_pid_controller(self,event=None):
@@ -306,7 +282,7 @@ class tracking_apriltag(object):
 		P = self.yaw_P
 		I = self.yaw_I
 		D = self.yaw_D
-
+		
 		P = P*(self.yaw_error[0]-self.yaw_error[1])
 		I = I*self.yaw_error[0]
 		D = D*((self.yaw_error[0]-self.yaw_error[1])-(self.yaw_error[1]-self.yaw_error[2]))
@@ -317,7 +293,7 @@ class tracking_apriltag(object):
 		if self.yaw_input_pwm >= 86.523:
 			self.yaw_input_pwm = 86.523
 			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
-
+			
 		elif self.yaw_input_pwm <= 35.743:
 			self.yaw_input_pwm = 35.743
 			self.yaw.ChangeDutyCycle(self.yaw_input_pwm)
@@ -371,9 +347,7 @@ class tracking_apriltag(object):
 			self.yaw_error[0] = 0
 		else:
 			self.yaw_error[0] = error_yaw
-		# Publish the errors
-		self.error_pitch_pub.publish(self.pitch_error[0])
-		self.error_yaw_pub.publish(self.yaw_error[0])
+
 
 
 	def cleanup(self):
